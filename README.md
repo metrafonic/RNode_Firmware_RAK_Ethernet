@@ -1,3 +1,15 @@
+# RNode Firmware — RAK4631 Ethernet Edition
+
+This fork adds Ethernet support for the RAK4631 + RAK13800 (W5100S) WisBlock combination, enabling KISS-over-TCP host connections alongside the existing USB serial interface. The same firmware binary supports both plain RAK4631 boards and the ETH variant — the W5100S is detected at runtime.
+
+To install via `rnodeconf`:
+
+```bash
+rnodeconf --autoinstall --fw-url https://github.com/metrafonic/RNode_Firmware/releases/
+```
+
+---
+
 *This repository is [a public mirror](./MIRROR.md). All development is happening elsewhere.*
 
 ***Important!** This repository is currently functioning as a stable reference for the default RNode Firmware, and only receives bugfix and security updates. Further development, new features and expanded board support is now happening at the [RNode Firmware Community Edition](https://github.com/liberatedsystems/RNode_Firmware_CE) repository, and is maintained by [Liberated Embedded Systems](https://github.com/liberatedsystems). Thanks for all contributions so far!*
