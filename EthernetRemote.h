@@ -116,7 +116,9 @@ static void eth_hw_reset() {
 static bool eth_start() {
   SPI.begin();
   Ethernet.init(SPI, ETH_CS_PIN);
-  int status = Ethernet.begin(eth_mac);
+  // begin() calls W5100.init() first; returns 0 immediately if no hardware.
+  // 8s DHCP timeout avoids a 60s hang when the module is present but unplugged.
+  int status = Ethernet.begin(eth_mac, 8000, 2000);
   if (status == 0) { return false; }
   eth_listener.begin();
   return true;
