@@ -21,11 +21,13 @@
 #define ETH_CONNECT_TIMEOUT_MS 15000
 #define ETH_MAC_CHECK_MS       5000
 #define ETH_RETRY_MS           30000
+#define ETH_MAINTAIN_MS        1000
 
 uint32_t eth_last_read      = 0;
 uint32_t eth_connect_time   = 0;
 uint32_t eth_last_mac_check = 0;
 uint32_t eth_last_retry     = 0;
+uint32_t eth_last_maintain  = 0;
 bool     eth_initialized    = false;
 bool     eth_session_started = false;
 bool     eth_hw_detected    = false; // W5100S confirmed present at least once
@@ -41,6 +43,8 @@ EthernetClient eth_connection;
 uint8_t eth_mac[6];
 
 extern void host_disconnected();
+extern volatile uint8_t queue_height; // pending TX packets (RNode_Firmware.ino)
+extern bool dcd;                       // carrier detect / RX in progress (Config.h)
 
 static void eth_get_mac(uint8_t *mac) {
   // Derive a stable, unique MAC from the nRF52840 FICR device address
@@ -123,7 +127,7 @@ static bool eth_start() {
   // If hardware was seen before, check link before attempting DHCP — avoids
   // the full 8s timeout every 30s when the cable is simply unplugged.
   if (eth_hw_detected && Ethernet.linkStatus() != LinkON) { return false; }
-  int status = Ethernet.begin(eth_mac, 8000, 2000);
+  int status = Ethernet.begin(eth_mac, 3000, 1500);
   if (status == 0) {
     if (Ethernet.hardwareStatus() == EthernetNoHardware) { eth_hw_absent = true; }
     else                                                  { eth_hw_detected = true; }
@@ -164,7 +168,15 @@ void update_eth() {
     return;
   }
 
-  Ethernet.maintain(); // renew DHCP lease when needed
+  // Renew the DHCP lease, but only during a radio-quiet gap (no carrier, no queued
+  // TX) so the blocking call can't interrupt an in-flight packet. checkLease()
+  // advances by elapsed time, so a renewal that comes due while busy just fires at
+  // the next quiet gap; the W5100S holds the IP until then. A normal renewal is
+  // sub-second — the 3 s begin() timeout only bites an unresponsive server.
+  if (!dcd && queue_height == 0 && millis() - eth_last_maintain >= ETH_MAINTAIN_MS) {
+    eth_last_maintain = millis();
+    Ethernet.maintain();
+  }
 
   if (millis() - eth_last_mac_check >= ETH_MAC_CHECK_MS) {
     eth_last_mac_check = millis();
