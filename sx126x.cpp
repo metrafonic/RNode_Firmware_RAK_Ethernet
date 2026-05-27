@@ -488,8 +488,10 @@ int sx126x::endPacket() {
 }
 
 unsigned long preamble_detected_at = 0;
+unsigned long header_detected_at = 0;
 extern long lora_preamble_time_ms;
 extern long lora_header_time_ms;
+extern float lora_us_per_byte;
 bool false_preamble_detected = false;
 
 bool sx126x::dcd() {
@@ -499,8 +501,29 @@ bool sx126x::dcd() {
   bool header_detected = false;
   bool carrier_detected = false;
 
-  if ((buf[1] & IRQ_HEADER_DET_MASK_6X) != 0) { header_detected = true; carrier_detected = true; }
-  else { header_detected = false; }
+  if ((buf[1] & IRQ_HEADER_DET_MASK_6X) != 0) {
+    header_detected = true;
+    carrier_detected = true;
+    // IRQ_HEADER_DET is latched and is only cleared by handleDio0Rise() when
+    // RX_DONE fires. A partial/foreign packet that never completes leaves it set
+    // permanently, so dcd() reports a forever-busy channel and CSMA can never
+    // transmit. Self-heal: if it stays latched longer than a max-length packet
+    // could take, clear it and re-arm RX (mirrors the false-preamble handling).
+    if (header_detected_at == 0) { header_detected_at = now; }
+    else if (lora_us_per_byte > 0.0 && lora_us_per_byte < 1000000.0) {
+      long max_packet_ms = lora_preamble_time_ms + lora_header_time_ms + (long)(MAX_PKT_LENGTH * lora_us_per_byte / 1000.0);
+      if ((long)(now - header_detected_at) > max_packet_ms) {
+        header_detected_at = 0;
+        false_preamble_detected = true;
+        uint8_t clearbuf[2] = {0};
+        clearbuf[1] = IRQ_HEADER_DET_MASK_6X | IRQ_PREAMBLE_DET_MASK_6X;
+        executeOpcode(OP_CLEAR_IRQ_STATUS_6X, clearbuf, 2);
+      }
+    }
+  } else {
+    header_detected = false;
+    header_detected_at = 0;
+  }
 
   if ((buf[1] & IRQ_PREAMBLE_DET_MASK_6X) != 0) {
     carrier_detected = true;
