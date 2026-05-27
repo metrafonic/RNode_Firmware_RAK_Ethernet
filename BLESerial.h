@@ -19,11 +19,13 @@
 #if HAS_BLE
 
 #include <Arduino.h>
+#include <string>
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
+#include <BLEAdvertising.h>
 
 template <size_t n>
 class BLEFIFO {
@@ -119,6 +121,8 @@ private:
 
   int ConnectedDeviceCount;
   void SetupSerialService();
+
+  std::string m_name;
 
   uint16_t peerMTU;
   uint16_t maxTransferSize = BLE_BUFFER_SIZE;

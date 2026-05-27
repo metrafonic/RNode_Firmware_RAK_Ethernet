@@ -564,13 +564,16 @@ char bt_devname[11];
       }
 
       Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-      Bluefruit.Advertising.addTxPower();
 
       // Include bleuart 128-bit uuid
       Bluefruit.Advertising.addService(SerialBT);
 
-      // There is no room for Name in Advertising packet
-      // Use Scan response for Name
+      // Include a shortened name in the main advertising packet so that
+      // passive scanners (macOS CoreBluetooth) can see the device name.
+      // flags(3) + 128-bit UUID(18) + 8-char name(10) = 31 bytes exactly.
+      // TxPower is omitted to make room; the full name goes in scan response
+      // for active scanners (Linux, Android).
+      Bluefruit.Advertising.addShortName(8);
       Bluefruit.ScanResponse.addName();
 
       Bluefruit.Advertising.start(0);

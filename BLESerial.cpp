@@ -109,6 +109,7 @@ void BLESerial::disconnect() {
 
 void BLESerial::begin(const char *name) {
   ConnectedDeviceCount = 0;
+  m_name = std::string(name);
   BLEDevice::init(name);
 
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9); 
@@ -126,10 +127,28 @@ void BLESerial::begin(const char *name) {
 
 void BLESerial::startAdvertising() {
   ble_adv = BLEDevice::getAdvertising();
-  ble_adv->addServiceUUID(BLE_SERIAL_SERVICE_UUID);
-  ble_adv->setMinPreferred(0x20);
-  ble_adv->setMaxPreferred(0x40);
-  ble_adv->setScanResponse(true);
+
+  // Main advertising packet: flags + service UUID + shortened name.
+  // macOS CoreBluetooth uses passive scanning (no scan requests), so it
+  // never receives scan responses. Without the name here, device.name is
+  // always None on macOS and the device cannot be found by name. The 128-bit
+  // UUID takes 18 bytes; a shortened name of up to 8 chars fits in the
+  // remaining space (31 byte limit: flags=3 + UUID=18 + name=10 = 31).
+  BLEAdvertisementData adv_data;
+  adv_data.setFlags(0x06);  // LE General Discoverable | BR/EDR Not Supported
+  adv_data.setCompleteServices(BLEUUID(BLE_SERIAL_SERVICE_UUID));
+  if (!m_name.empty()) {
+    adv_data.setShortName(m_name.substr(0, 8));
+  }
+  ble_adv->setAdvertisementData(adv_data);
+
+  // Scan response: full name for active scanners (Linux, Android).
+  BLEAdvertisementData scan_resp;
+  if (!m_name.empty()) {
+    scan_resp.setName(m_name);
+  }
+  ble_adv->setScanResponseData(scan_resp);
+
   ble_adv->start();
 }
 
