@@ -1478,6 +1478,16 @@ void check_modem_status() {
         update_airtime();
       }
     #endif
+
+    // RX-stall watchdog: a completed reception (rx_done_events advancing) clears
+    // the evidence; if headers keep aborting without one, the receiver is wedged
+    // and loop() does a full radio re-init.
+    uint32_t rde = rx_done_events;
+    if (rde != rx_done_events_seen) {
+      rx_done_events_seen = rde;
+      rx_aborts_baseline  = rx_header_aborts;
+    }
+    if (rx_header_aborts - rx_aborts_baseline >= RX_STALL_ABORT_LIMIT) { rx_stall_recover = true; }
   }
 }
 
@@ -1710,7 +1720,15 @@ void loop() {
 
     tx_queue_handler();
     check_modem_status();
-  
+
+    if (rx_stall_recover) {
+      rx_stall_recover = false;
+      stopRadio();
+      startRadio();
+      rx_done_events_seen = rx_done_events;
+      rx_aborts_baseline  = rx_header_aborts;
+    }
+
   } else {
     if (hw_ready) {
       if (console_active) {
