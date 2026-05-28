@@ -492,6 +492,8 @@ unsigned long header_detected_at = 0;
 extern long lora_preamble_time_ms;
 extern long lora_header_time_ms;
 extern float lora_us_per_byte;
+extern volatile uint32_t rx_done_events;
+extern volatile uint32_t rx_header_aborts;
 bool false_preamble_detected = false;
 
 bool sx126x::dcd() {
@@ -522,6 +524,7 @@ bool sx126x::dcd() {
       if ((long)(now - header_detected_at) > max_packet_ms) {
         header_detected_at = 0;
         false_preamble_detected = true;
+        rx_header_aborts++;
         uint8_t clearbuf[2] = {0};
         clearbuf[1] = IRQ_HEADER_DET_MASK_6X | IRQ_PREAMBLE_DET_MASK_6X;
         executeOpcode(OP_CLEAR_IRQ_STATUS_6X, clearbuf, 2);
@@ -888,6 +891,7 @@ void sx126x::dumpRegisters(Stream& out) {
 }
 
 void ISR_VECT sx126x::handleDio0Rise() {
+  rx_done_events++;
   uint8_t buf[2];
   buf[0] = 0x00;
   buf[1] = 0x00;
